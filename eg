@@ -1,0 +1,85 @@
+#!/bin/bash
+export http_proxy=''
+export https_proxy=$http_proxy
+
+DATE=`date +%Y%m%d%H%M%S`
+MYDEV=dev/test
+DEV=develop
+REMOTE=origin
+TEMP=$MYDEV-temp
+
+# merge $1 to $2
+function git_merge
+{
+    git checkout $2 --quiet
+    if [[ $? -ne 0 ]]; then
+        git checkout -b $2 --quiet
+        if [[ $NOREMOTE -eq 0 ]]; then
+            git push --set-upstream origin $2 --quiet
+            if [[ $? -ne 0 ]]; then return 1; fi
+        fi
+    else
+        if [[ $NOREMOTE -eq 0 ]]; then
+            git pull --quiet
+            if [[ $? -ne 0 ]]; then return 1; fi
+        fi
+        git merge --message "merge at $DATE by $MYDEV" $1 --quiet
+        if [[ $? -ne 0 ]]; then return 1; fi
+        if [[ $NOREMOTE -eq 0 ]]; then
+            git push --quiet
+            if [[ $? -ne 0 ]]; then return 1; fi
+        fi
+    fi
+    return 0
+}
+
+function git_commit_push
+{
+SUBMODULES=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+for SUBMODULE in $SUBMODULES
+do
+    cd $SUBMODULE
+    git_commit_push
+    cd ..
+done
+#sync remote branches
+git fetch --progress --recurse-submodules=on-demand $REMOTE --quiet
+NOREMOTE=$?
+if [[ $NOREMOTE -eq 128 ]]; then
+    return
+fi
+git add --all
+DIFF=$(git diff HEAD)
+if [[ -z $DIFF ]]; then
+    git checkout $MYDEV --quiet
+    if [[ $? -ne 0 ]]; then
+        git checkout -b $MYDEV --quiet
+    fi
+    if [[ $NOREMOTE -eq 0 ]]; then
+        git push --set-upstream origin $MYDEV --quiet
+        git submodule update --init --recursive --quiet
+    fi
+    return
+else
+    git checkout -B $TEMP --quiet
+    git commit --all --message "Update at $DATE by $MYDEV" --quiet
+    if [[ $? -ne 0 ]]; then
+        git show
+        exit
+    fi
+fi
+git_merge $TEMP $MYDEV
+if [[ $? -ne 0 ]]; then
+    git show
+else
+    git_merge $MYDEV $DEV
+    if [[ $? -ne 0 ]]; then
+        git show
+    else
+        git_merge $DEV $MYDEV
+        git branch -D $TEMP --quiet
+    fi
+fi
+}
+
+git_commit_push
