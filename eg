@@ -11,7 +11,7 @@ TEMP=$MYDEV-temp
 # merge $1 to $2
 function git_merge
 {
-    git checkout $2 --quiet
+    git show-ref --verify --quiet refs/remotes/origin/$MYDEV
     if [[ $? -ne 0 ]]; then
         git checkout -b $2 --quiet
         if [[ $NOREMOTE -eq 0 ]]; then
@@ -19,6 +19,7 @@ function git_merge
             if [[ $? -ne 0 ]]; then return 1; fi
         fi
     else
+        git checkout $2 --quiet
         if [[ $NOREMOTE -eq 0 ]]; then
             git pull --quiet
             if [[ $? -ne 0 ]]; then return 1; fi
@@ -51,12 +52,16 @@ fi
 git add --all
 DIFF=$(git diff HEAD)
 if [[ -z $DIFF ]]; then
-    git checkout $MYDEV --quiet
+    git show-ref --verify --quiet refs/remotes/origin/$MYDEV
     if [[ $? -ne 0 ]]; then
         git checkout -b $MYDEV --quiet
+        if [[ $NOREMOTE -eq 0 ]]; then
+            git push --set-upstream origin $MYDEV --quiet
+        fi
+    else
+        git checkout $MYDEV --quiet
     fi
     if [[ $NOREMOTE -eq 0 ]]; then
-        git push --set-upstream origin $MYDEV --quiet
         git submodule update --init --recursive --quiet
     fi
     return
