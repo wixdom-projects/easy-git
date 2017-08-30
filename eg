@@ -9,24 +9,32 @@ REMOTE=origin
 TEMP=$MYDEV-temp
 
 # merge $1 to $2
-function git_merge
-{
-    git show-ref --verify --quiet refs/remotes/origin/$MYDEV
-    if [[ $? -ne 0 ]]; then
-        git checkout -b $2 --quiet
-        if [[ $NOREMOTE -eq 0 ]]; then
-            git push --set-upstream origin $2 --quiet
-            if [[ $? -ne 0 ]]; then return 1; fi
+function gitMerge {
+    if [[ $1 = $TEMP ]]; then
+        git show-ref --verify --quiet refs/heads/$1
+        if [[ $? -eq 0 ]]; then
+            git checkout $1 --quiet
         fi
     else
-        git checkout $2 --quiet
-        if [[ $NOREMOTE -eq 0 ]]; then
+        git show-ref --verify --quiet refs/remotes/origin/$1
+        if [[ $? -eq 0 ]]; then
+            git checkout $1 --quiet
             git pull --quiet
-            if [[ $? -ne 0 ]]; then return 1; fi
         fi
-        git merge --message "merge at $DATE by $MYDEV" $1 --quiet
+    fi
+    local sourceNotExist=$?
+
+    git show-ref --verify --quiet refs/remotes/origin/$2
+    if [[ $? -ne 0 ]]; then
+        git checkout -b $2 --quiet
+        git push --set-upstream origin $2 --quiet
         if [[ $? -ne 0 ]]; then return 1; fi
-        if [[ $NOREMOTE -eq 0 ]]; then
+    else
+        git checkout $2 --quiet
+        git pull --quiet
+        if [[ sourceNotExist -eq 0 ]]; then
+            git merge --message "merge at $DATE by $MYDEV" $1 --quiet
+            if [[ $? -ne 0 ]]; then return 1; fi
             git push --quiet
             if [[ $? -ne 0 ]]; then return 1; fi
         fi
@@ -34,57 +42,42 @@ function git_merge
     return 0
 }
 
-function git_commit_push
-{
-SUBMODULES=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
-for SUBMODULE in $SUBMODULES
-do
-    cd $SUBMODULE
-    git_commit_push
-    cd ..
-done
-#sync remote branches
-git fetch --progress --recurse-submodules=on-demand $REMOTE --quiet
-NOREMOTE=$?
-if [[ $NOREMOTE -eq 128 ]]; then
-    return
-fi
-git add --all
-DIFF=$(git diff HEAD)
-if [[ -z $DIFF ]]; then
-    git show-ref --verify --quiet refs/remotes/origin/$MYDEV
-    if [[ $? -ne 0 ]]; then
-        git checkout -b $MYDEV --quiet
-        if [[ $NOREMOTE -eq 0 ]]; then
-            git push --set-upstream origin $MYDEV --quiet
-        fi
-    else
-        git checkout $MYDEV --quiet
-    fi
-    if [[ $NOREMOTE -eq 0 ]]; then
-        git submodule update --init --recursive --quiet
-    fi
-    return
-else
-    git checkout -B $TEMP --quiet
-    git commit --all --message "Update at $DATE by $MYDEV" --quiet
-    if [[ $? -ne 0 ]]; then
-        git show
-        exit
-    fi
-fi
-git_merge $TEMP $MYDEV
-if [[ $? -ne 0 ]]; then
-    git show
-else
-    git_merge $MYDEV $DEV
-    if [[ $? -ne 0 ]]; then
-        git show
-    else
-        git_merge $DEV $MYDEV
-        git branch -D $TEMP --quiet
-    fi
-fi
+function iterateSubmodules {
+    local submodules=$(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+    for submodule in $submodules
+    do
+        cd $submodule
+        eval $1
+        cd ..
+    done
 }
 
-git_commit_push
+function gitCommitPush {
+    iterateSubmodules "gitCommitPush"
+    #sync remote branches
+    git fetch --recurse-submodules=no $REMOTE --quiet
+    if [[ $? -ne 0 ]]; then exit; fi
+    diff=$(git diff HEAD)
+    if [[ -z $diff ]]; then return; fi
+    git checkout -B $TEMP --quiet
+    git commit --all --message "Update at $DATE by $MYDEV" --quiet
+    if [[ $? -ne 0 ]]; then exit; fi
+    gitMerge $TEMP $MYDEV
+    if [[ $? -ne 0 ]]; then exit; fi
+    gitMerge $MYDEV $DEV
+    if [[ $? -ne 0 ]]; then exit; fi
+    gitMerge $DEV $MYDEV
+    git branch -D $TEMP --quiet
+}
+
+cd /Users/hnery/test-temp/test-c
+
+git fetch --recurse-submodules=no $REMOTE --quiet
+if [[ $? -ne 0 ]]; then exit; fi
+diff=$(git diff HEAD)
+if [[ -z $diff ]]; then
+    gitMerge $DEV $MYDEV
+    git submodule update --init --recursive --quiet
+else
+    gitCommitPush
+fi
