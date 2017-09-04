@@ -86,13 +86,18 @@ function gitMergePush {
     git branch -D $TEMP --quiet
 }
 
+function gitPullMerge {
+    gitMerge $DEV $MYDEV
+    git submodule update --init --quiet
+    iterateSubmodules "gitPullMerge"
+}
+
 git fetch --recurse-submodules=no $REMOTE --quiet
 if [[ $? -ne 0 ]]; then exit; fi
 diff=$(git diff HEAD)
 if [[ -z $diff ]]; then
-    gitMerge $DEV $MYDEV
-    git submodule update --init --recursive --quiet
+    gitPullMerge
 else
     gitCommit
+    gitMergePush
 fi
-gitMergePush
