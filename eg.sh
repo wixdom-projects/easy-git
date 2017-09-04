@@ -3,7 +3,7 @@ export http_proxy=''
 export https_proxy=$http_proxy
 
 DATE=`date +%Y%m%d%H%M%S`
-MYDEV=dev/test
+MYDEV=dev/user
 DEV=develop
 REMOTE=origin
 TEMP=$MYDEV-temp
