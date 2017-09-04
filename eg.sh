@@ -67,6 +67,7 @@ function gitCommit {
     if [[ $? -ne 0 ]]; then exit; fi
     git checkout -B $TEMP --quiet
     if [[ $? -ne 0 ]]; then exit; fi
+    git add --all
     git commit --all --message "Update at $DATE by $MYDEV" --quiet
     if [[ $? -ne 0 ]]; then exit; fi
     return
