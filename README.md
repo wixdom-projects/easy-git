@@ -1,6 +1,10 @@
 # easy-git
 use git with just one command(eg)
 
+commit to temporary local branch before merge
+
+easy to resolve conflict
+
 support submodules
 
 ## procedures below
