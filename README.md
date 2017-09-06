@@ -25,8 +25,8 @@ end if
 * delete `dev/{user}-temp` branch
 
 ## installation
-just copy eg.sh to `{user home}\bin`
+just copy eg.sh to `{user home}/bin`
 
 ## usage
-modify your own branch name `dev\user`
+modify your own branch name `dev/user`
 execute eg at the git repository path
