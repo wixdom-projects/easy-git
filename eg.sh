@@ -20,29 +20,42 @@ function gitMerge {
             sourceNotExist=1
         fi
     else
-        git show-ref --verify --quiet refs/remotes/origin/$1
+        git show-ref --verify --quiet refs/remotes/$REMOTE/$1
         if [[ $? -eq 0 ]]; then
             git checkout $1 --quiet
-            git pull --quiet
+            if [[ $? -ne 0 ]]; then exit; fi
+            if [[ $(git rev-parse @) != $(git rev-parse $REMOTE/$1)
+                && $(git rev-parse $REMOTE/$1) != $(git merge-base @ $REMOTE/$1) ]]; then
+                git pull --quiet
+                if [[ $? -ne 0 ]]; then exit; fi
+                git submodule update --init --quiet
+                if [[ $? -ne 0 ]]; then exit; fi
+            fi
             sourceNotExist=$?
         else
             sourceNotExist=1
         fi
     fi
-    git show-ref --verify --quiet refs/remotes/origin/$2
+    git show-ref --verify --quiet refs/remotes/$REMOTE/$2
     if [[ $? -ne 0 ]]; then
         git checkout -b $2 --quiet
         if [[ $? -ne 0 ]]; then exit; fi
-        git push --set-upstream origin $2 --quiet
+        git push --set-upstream $REMOTE $2 --quiet
         if [[ $? -ne 0 ]]; then exit; fi
     else
         git checkout $2 --quiet
         if [[ $? -ne 0 ]]; then exit; fi
-        git pull --quiet
-        if [[ $? -ne 0 ]]; then exit; fi
+        if [[ $(git rev-parse @) != $(git rev-parse $REMOTE/$2)
+            && $(git rev-parse $REMOTE/$2) != $(git merge-base @ $REMOTE/$2) ]]; then
+            git pull --quiet
+            if [[ $? -ne 0 ]]; then exit; fi
+            git submodule update --init --quiet
+            if [[ $? -ne 0 ]]; then exit; fi
+        fi
         if [[ $sourceNotExist -eq 0 ]]; then
             git merge --message "merge at $DATE by $MYDEV" $1 --quiet
             if [[ $? -ne 0 ]]; then exit; fi
+            if [[ $3 = "--push=no" ]]; then return; fi
             git push --quiet
             if [[ $? -ne 0 ]]; then exit; fi
         fi
@@ -54,8 +67,13 @@ function iterateSubmodules {
     for submodule in $submodules
     do
         cd $submodule
-        eval $1
-        cd ..
+        if [[ $? -ne 0 ]]; then
+            exit
+            # need to remove submodule
+        else
+            eval $1
+            cd ..
+        fi
     done
 }
 
@@ -63,8 +81,10 @@ function gitCommit {
     iterateSubmodules "gitCommit"
     diff=$(git diff HEAD)
     if [[ -z $diff ]]; then return; fi
-    git fetch --recurse-submodules=no $REMOTE --quiet
-    if [[ $? -ne 0 ]]; then exit; fi
+    if [[ $1 != "--fetch==no" ]]; then
+        git fetch --recurse-submodules=no $REMOTE --quiet
+        if [[ $? -ne 0 ]]; then exit; fi
+    fi
     git checkout -B $TEMP --quiet
     if [[ $? -ne 0 ]]; then exit; fi
     git add --all
@@ -75,8 +95,8 @@ function gitCommit {
 
 function gitMergePush {
     iterateSubmodules "gitMergePush"
-    gitCommit
-    gitMerge $TEMP $MYDEV
+    gitCommit --fetch=no
+    gitMerge $TEMP $MYDEV --push=no
     if [[ $? -ne 0 ]]; then exit; fi
     gitMerge $MYDEV $DEV
     if [[ $? -ne 0 ]]; then exit; fi
