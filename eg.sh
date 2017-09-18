@@ -79,6 +79,7 @@ function iterateSubmodules {
 
 function gitCommit {
     iterateSubmodules "gitCommit"
+    git add --all
     diff=$(git diff HEAD)
     if [[ -z $diff ]]; then return; fi
     if [[ $1 != "--fetch==no" ]]; then
@@ -115,6 +116,7 @@ function gitPullMerge {
 
 git fetch --recurse-submodules=no $REMOTE --quiet
 if [[ $? -ne 0 ]]; then exit; fi
+git add --all
 diff=$(git diff HEAD)
 if [[ -z $diff ]]; then
     gitPullMerge
